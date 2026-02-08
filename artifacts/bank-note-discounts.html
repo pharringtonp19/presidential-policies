@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discounts on Bank Notes at Philadelphia, 1845–1858</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fafaf8; }
+    #root { min-height: 100vh; }
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+  <script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+    const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } = Recharts;
+
+    const rawData = [
+      { state: "New England", values: [0.5, 0.375, 0.25, 0.25, 0.75, 0.375], region: "Northeast" },
+      { state: "New York", values: [0.75, 0.75, 0.5, 0.5, 1, 0.5], region: "Northeast" },
+      { state: "New Jersey", values: [0.75, 0, 0.25, 0.25, 0.75, 0.25], region: "Northeast" },
+      { state: "Pennsylvania", values: [0, 0, 0, 0, 0, 0], region: "Northeast" },
+      { state: "Delaware", values: [0, 0, 0, 0, 0, 0], region: "Northeast" },
+      { state: "Maryland", values: [0.25, 0.5, 0.5, 0.5, 5, 0.5], region: "Upper South" },
+      { state: "Virginia", values: [1, 0.75, 1, 1, 10, 0.625], region: "Upper South" },
+      { state: "North Carolina", values: [1.5, 1.25, 1.75, 1.25, 10, 1], region: "Upper South" },
+      { state: "South Carolina", values: [1.5, 1, 1, 0.75, 10, 1], region: "Deep South" },
+      { state: "Georgia", values: [2, 1, 1, 1, 10, 1], region: "Deep South" },
+      { state: "Alabama", values: [5.5, 3.5, 5, 5, 5, 3.5], region: "Deep South" },
+      { state: "Mississippi†", values: [80, 75, null, null, null, null], region: "Deep South" },
+      { state: "Louisiana", values: [2, 1, 0.25, 1.25, 5, 0.75], region: "Deep South" },
+      { state: "Tennessee", values: [2.5, 2.75, 2.5, 5, 20, 1.5], region: "West" },
+      { state: "Kentucky", values: [1.5, 1.5, 1, 1, 10, 0.75], region: "West" },
+      { state: "Missouri", values: [1.75, 1.5, 1, 1, 10, 1], region: "West" },
+      { state: "Ohio", values: [2, 1.5, 1, 1, 10, 0.75], region: "West" },
+      { state: "Indiana", values: [2, 1.5, 5, 5, 10, 2], region: "West" },
+      { state: "Illinois", values: [70, 75, 2, 2, 20, 1.5], region: "West" },
+      { state: "Michigan", values: [65, 3, 1.5, 1.5, 10, 1.5], region: "West" },
+      { state: "Wisconsin†", values: [null, null, 2, 2, 20, 1.5], region: "West" },
+    ];
+
+    const dates = ["Nov 1845", "Nov 1850", "Nov 1855", "Nov 1856", "Nov 1857", "Nov 1858"];
+
+    const regionColors = {
+      Northeast: ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"],
+      "Upper South": ["#dc2626", "#ef4444", "#f87171"],
+      "Deep South": ["#ea580c", "#f97316", "#fb923c", "#fdba74", "#fed7aa"],
+      West: ["#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5", "#16a34a", "#4ade80"],
+    };
+
+    const getColor = (region, index) => {
+      const palette = regionColors[region] || ["#666"];
+      return palette[index % palette.length];
+    };
+
+    const getHeatColor = (value) => {
+      if (value === null) return "#e5e7eb";
+      if (value === 0) return "#f0fdf4";
+      if (value <= 0.5) return "#bbf7d0";
+      if (value <= 1) return "#fef9c3";
+      if (value <= 2) return "#fde68a";
+      if (value <= 5) return "#fdba74";
+      if (value <= 10) return "#f87171";
+      if (value <= 20) return "#dc2626";
+      return "#7f1d1d";
+    };
+
+    function BankNoteDiscounts() {
+      const [view, setView] = useState("heatmap");
+      const [capAt, setCapAt] = useState(true);
+      const [selectedRegions, setSelectedRegions] = useState(new Set(["Northeast", "Upper South", "Deep South", "West"]));
+
+      const toggleRegion = (r) => {
+        const next = new Set(selectedRegions);
+        if (next.has(r)) next.delete(r);
+        else next.add(r);
+        setSelectedRegions(next);
+      };
+
+      const filteredData = rawData.filter((d) => selectedRegions.has(d.region));
+
+      const lineData = useMemo(() => {
+        return dates.map((date, i) => {
+          const point = { date };
+          filteredData.forEach((d) => {
+            let val = d.values[i];
+            if (val !== null && capAt && val > 25) val = null;
+            point[d.state] = val;
+          });
+          return point;
+        });
+      }, [filteredData, capAt]);
+
+      const regionIndices = {};
+      const stateColors = {};
+      filteredData.forEach((d) => {
+        if (!regionIndices[d.region]) regionIndices[d.region] = 0;
+        stateColors[d.state] = getColor(d.region, regionIndices[d.region]);
+        regionIndices[d.region]++;
+      });
+
+      const btnStyle = (active) => ({
+        padding: "6px 16px", borderRadius: 6, border: "1px solid #d1d5db", cursor: "pointer",
+        backgroundColor: active ? "#1a1a1a" : "#fff",
+        color: active ? "#fff" : "#1a1a1a", fontSize: 13, fontWeight: 500,
+      });
+
+      return (
+        <div style={{ fontFamily: "'Georgia', serif", maxWidth: 960, margin: "0 auto", padding: "24px 16px", backgroundColor: "#fafaf8" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, textAlign: "center", marginBottom: 4, color: "#1a1a1a" }}>
+            Discounts on Bank Notes at Philadelphia
+          </h1>
+          <p style={{ textAlign: "center", color: "#666", fontSize: 14, marginBottom: 20 }}>
+            Selected Dates, 1845–1858 (Percent Discount)
+          </p>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <button onClick={() => setView("heatmap")} style={btnStyle(view === "heatmap")}>Heatmap</button>
+            <button onClick={() => setView("lines")} style={btnStyle(view === "lines")}>Line Chart</button>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+            {Object.keys(regionColors).map((r) => (
+              <label key={r} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={selectedRegions.has(r)} onChange={() => toggleRegion(r)} />
+                <span style={{ color: regionColors[r][0], fontWeight: 600 }}>{r}</span>
+              </label>
+            ))}
+          </div>
+
+          {view === "heatmap" && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "2px solid #333", fontSize: 12, color: "#666" }}>State</th>
+                    {dates.map((d) => (
+                      <th key={d} style={{ padding: "8px 10px", borderBottom: "2px solid #333", fontSize: 12, color: "#666", textAlign: "center" }}>{d}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.map((row) => (
+                    <tr key={row.state}>
+                      <td style={{
+                        padding: "6px 12px", fontWeight: 500, borderBottom: "1px solid #e5e7eb",
+                        color: stateColors[row.state], whiteSpace: "nowrap",
+                      }}>
+                        {row.state}
+                      </td>
+                      {row.values.map((v, ci) => (
+                        <td key={ci} style={{
+                          padding: "6px 10px", textAlign: "center", borderBottom: "1px solid #e5e7eb",
+                          backgroundColor: getHeatColor(v), fontWeight: v !== null && v >= 10 ? 700 : 400,
+                          color: v !== null && v >= 20 ? "#fff" : "#1a1a1a", fontSize: 13,
+                        }}>
+                          {v === null ? "?" : v === 0 ? "0" : v}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ display: "flex", justifyContent: "center", gap: 0, marginTop: 16, flexWrap: "wrap" }}>
+                {[
+                  { label: "0%", color: "#f0fdf4" },
+                  { label: "≤½%", color: "#bbf7d0" },
+                  { label: "≤1%", color: "#fef9c3" },
+                  { label: "≤2%", color: "#fde68a" },
+                  { label: "≤5%", color: "#fdba74" },
+                  { label: "≤10%", color: "#f87171" },
+                  { label: "≤20%", color: "#dc2626" },
+                  { label: ">20%", color: "#7f1d1d" },
+                ].map((item) => (
+                  <div key={item.label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ width: 48, height: 16, backgroundColor: item.color, border: "1px solid #d1d5db" }} />
+                    <span style={{ fontSize: 10, color: "#666", marginTop: 2 }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {view === "lines" && (
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center", marginBottom: 12, fontSize: 13 }}>
+                <input type="checkbox" checked={capAt} onChange={() => setCapAt(!capAt)} />
+                Hide extreme outliers (&gt;25%)
+              </label>
+              <ResponsiveContainer width="100%" height={420}>
+                <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} label={{ value: "Discount (%)", angle: -90, position: "insideLeft", fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12 }}
+                    formatter={(value, name) => [value !== null ? `${value}%` : "N/A", name]}
+                  />
+                  {filteredData.map((d) => (
+                    <Line
+                      key={d.state}
+                      type="monotone"
+                      dataKey={d.state}
+                      stroke={stateColors[d.state]}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16, marginTop: 8 }}>
+                {Object.keys(regionColors).filter((r) => selectedRegions.has(r)).map((r) => (
+                  <div key={r} style={{ fontSize: 12 }}>
+                    <span style={{ fontWeight: 700, color: regionColors[r][0], marginRight: 4 }}>{r}:</span>
+                    {filteredData.filter((d) => d.region === r).map((d) => (
+                      <span key={d.state} style={{ color: stateColors[d.state], marginRight: 8 }}>
+                        ■ {d.state}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p style={{ textAlign: "center", fontSize: 11, color: "#999", marginTop: 20, fontStyle: "italic" }}>
+            Source: Various issues of <em>Van Court's Counterfeit Detector and Bank Note List</em>.
+            † Mississippi and Wisconsin notes were of doubtful value. Table gives modal discount.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<BankNoteDiscounts />);
+  </script>
+</body>
+</html>
