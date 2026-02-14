@@ -1,0 +1,173 @@
+---
+title: "Problem Set #1"
+output: html_notebook
+---
+
+### Question #1:
+The sign of the second derivative of DWL with respect to tariffs is positive. The second derivative of governement revenue with respect to tariffs is zero.In other words, DWL is a convex function of tariffs and government revenue is linear.
+
+### Question #2: Setup Computer
+
+```{r}
+install.packages("readr")
+install.packages("dplyr")
+install.packages("ggplot2")
+```
+```{r}
+setwd("/Users/ppower1/Downloads/")
+```
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+sessionInfo()
+```
+
+### Question #3: Process Data
+
+```{r}
+# Reading in the Dataset
+df <- read_csv("imports_by_product_country.csv")
+
+# Viewing the first Couple of Rows
+head(df)
+```
+
+
+```{r}
+# Number of Observations
+print(nrow(df))
+```
+### Question #4: Cleaning Data
+
+```{r}
+df <- df %>%
+  rename(duties = duty_mo,
+         import_value = import_value_mo)
+```
+
+```{r}
+df <- df %>%
+  filter(
+    !is.na(duties),
+    import_value > 0
+  )
+print(nrow(df))
+```
+
+```{r}
+summary(df)
+```
+
+### Question #5: Creating a Variable
+```{r}
+df_collapsed <- df %>%
+  group_by(country_name, commodity) %>%
+  summarise(
+    duties = sum(duties),
+    import_value = sum(import_value),
+    .groups = "drop"
+  )
+head(df_collapsed)
+```
+
+```{r}
+df_collapsed$tariff_rate <- df_collapsed$duties / df_collapsed$import_value
+```
+
+
+### Question #6: Data Exploration
+```{r}
+df_collapsed %>%
+  summarise(
+    mean = mean(import_value) / 1e6,
+    sd = sd(import_value) / 1e6,
+    min = min(import_value) / 1e6,
+    max = max(import_value) / 1e6
+  )
+```
+
+```{r}
+df_collapsed %>%
+  group_by(country_name) %>%
+  summarise(total_imports = sum(import_value)) %>%
+  arrange(desc(total_imports)) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(country_name, total_imports), y = total_imports)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  scale_y_continuous(labels = function(x) x / 1e9) +
+  labs(title = "Top 20 Exporters to the US", x = "", y = "Import Value (Billions USD)") +
+  theme_minimal()
+```
+
+
+```{r}
+# Create country-level summary
+country_summary <- df_collapsed %>%
+  group_by(country_name) %>%
+  summarise(
+    total_imports = sum(import_value, na.rm = TRUE),
+    avg_tariff = mean(tariff_rate, na.rm = TRUE)
+  )
+
+# Scatter plot
+ggplot(country_summary, aes(x = total_imports, y = avg_tariff)) +
+  geom_point() +
+  labs(
+    title = "Imports vs Average Tariff Rate by Country",
+    x = "Total Imports",
+    y = "Average Tariff Rate"
+  ) +
+  theme_minimal()
+
+# Correlation
+print(cor(country_summary$total_imports, country_summary$avg_tariff))
+
+```
+
+
+### Question #7: Summary Statistics
+```{r}
+import_value <- sum(df_collapsed$import_value)
+```
+
+```{r}
+dwl <- 0.5*2*sum(df_collapsed$import_value *df_collapsed$tariff_rate^2 )
+```
+
+```{r}
+print(dwl/import_value)
+```
+
+```{r}
+tau_avg <- sum(df_collapsed$import_value * df_collapsed$tariff_rate) /   sum(df_collapsed$import_value)
+print(tau_avg)
+```
+
+### Question #8: Uniform Tariff
+```{r}
+# Effective uniform tariff
+tau_effective <- sqrt(sum(df_collapsed$import_value * df_collapsed$tariff_rate^2) / sum(df_collapsed$import_value))
+
+tau_effective
+```
+
+```{r}
+df_collapsed %>%
+  filter(tariff_rate <= quantile(tariff_rate, 0.99)) %>%
+  ggplot(aes(x = tariff_rate)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = tau_avg, color = "red", linewidth = 1) +
+  geom_vline(xintercept = tau_effective, color = "darkgreen", linewidth = 1) +
+  annotate("text", x = tau_avg + 0.05, y = 40000, label = "Average", color = "red") +
+  annotate("text", x = tau_effective + 0.05, y = 35000, label = "Effective", color = "darkgreen") +
+  labs(
+    title = "Distribution of Tariff Rates",
+    x = "Tariff Rate",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
