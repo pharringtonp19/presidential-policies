@@ -1,0 +1,141 @@
+---
+title: "pres#2"
+output: html_document
+date: "2026-02-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Users/ppower1/Desktop/")
+```
+
+## Setup
+
+```{r}
+library("readr")
+library("dplyr")
+library("ggplot2")
+library("fixest")
+library(tidyr)
+```
+
+(b)
+```{r cars}
+df <- read_csv("problem_set_two_data.csv")
+head(df)
+```
+(c)
+```{r}
+df <- df %>% filter(MA > 0)
+```
+
+(d)
+```{r}
+df <- df %>%
+  group_by(fips) %>%
+  filter(n_distinct(year) == 3) %>%
+  ungroup()
+```
+
+## Part One
+
+(a)
+```{r}
+df$log_revenue <- log(df$production_value)
+df$log_MA <- log(df$MA)
+```
+
+(b)
+```{r}
+reg <- feols(log_revenue ~ log_MA | fips + state^year, data = df)
+summary(reg)
+```
+
+(c)
+```{r}
+sd_change <- df %>%
+  filter(year %in% c(1860, 1880)) %>%
+  select(fips, year, log_MA) %>%
+  pivot_wider(names_from = year, values_from = log_MA, names_prefix = "y") %>%
+  mutate(delta = y1880 - y1860) %>%
+  pull(delta) %>%
+  sd()
+sd_change
+```
+
+(d)
+```{r}
+beta_hat <- coef(reg)["log_MA"]
+effect <- beta_hat * sd_change
+effect
+```
+
+## Part Two
+
+(a)
+```{r}
+df$capital_cost <- 0.10 * df$capital
+df$log_K <- log(df$capital_cost)
+df$log_L <- log(df$labor_cost)
+df$log_M <- log(df$material_cost)
+```
+
+(b)
+```{r}
+alpha_K <- mean(df$capital_cost / df$production_value)
+alpha_L <- mean(df$labor_cost / df$production_value)
+alpha_M <- mean(df$material_cost / df$production_value)
+
+alpha_K
+alpha_L
+alpha_M
+```
+
+(c)
+```{r}
+df$log_TFPR <- df$log_revenue - alpha_K * df$log_K - alpha_L * df$log_L - alpha_M * df$log_M
+```
+
+(d)
+```{r}
+reg_tfpr <- feols(log_TFPR ~ log_MA | fips + state^year, data = df)
+summary(reg_tfpr)
+```
+
+```{r}
+beta_tfpr <- coef(reg_tfpr)["log_MA"]
+effect_tfpr <- beta_tfpr * sd_change
+effect_tfpr
+```
+
+
+## Part Three
+(a)
+```{r}
+# Compute sd by year
+sd_by_year <- df %>%
+  group_by(year) %>%
+  summarize(sd_log_TFPR = sd(log_TFPR))
+
+# Bar chart
+ggplot(sd_by_year, aes(x = factor(year), y = sd_log_TFPR)) +
+  geom_col() +
+  labs(x = "Year", y = "SD of log(TFPR)",
+       title = "Dispersion of Revenue Productivity Over Time") +
+  theme_minimal()
+```
+
+(b)
+The dispersion decreases by roughly 11% over thie time period
+```{r}
+sd_1860 <- sd_by_year$sd_log_TFPR[sd_by_year$year == 1860]
+sd_1880 <- sd_by_year$sd_log_TFPR[sd_by_year$year == 1880]
+pct_change <- (sd_1880 - sd_1860) / sd_1860 * 100
+pct_change
+```
+
+(c)
+Bar chart suggests that factors of production became more efficiently allocated over time. Our previous results suggest that railroads played a significant role in this regrard. They contributed to growth in the U.S. by improving market access which allowed for a more efficient allocation of factors of production.
